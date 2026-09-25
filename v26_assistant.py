@@ -25,7 +25,7 @@ v26: Gemini Audio + Gemma + Health Monitor + Voice Improvements + Interview Mode
 - [v26] Логирование confidence score для отладки распознавания
 - [v26] Режим Interview Mode - Gemini задает вопросы на собеседовании
 
-Install: pip install pyaudiowpatch google-genai numpy pynput
+Install: pip install pyaudiowpatch sounddevice google-genai numpy pynput
 """
 
 import asyncio
@@ -37,17 +37,34 @@ from tkinter import scrolledtext
 import numpy as np
 import logging
 import os
+import sys
+import importlib.util
 
 from pynput import keyboard
 
-LOG_PATH = os.path.join(os.path.dirname(__file__) or '.', "v24.log")
+def _app_base_dir():
+    """Directory for user-visible runtime files (works both as .py and PyInstaller .exe)."""
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__)) or "."
+
+
+APP_BASE_DIR = _app_base_dir()
+LOG_PATH = os.path.join(APP_BASE_DIR, "v24.log")
+_log_handlers = []
+try:
+    _log_handlers.append(logging.FileHandler(LOG_PATH, encoding='utf-8'))
+except OSError:
+    fallback_dir = os.path.join(os.environ.get("LOCALAPPDATA", APP_BASE_DIR), "v26_assistant")
+    os.makedirs(fallback_dir, exist_ok=True)
+    LOG_PATH = os.path.join(fallback_dir, "v24.log")
+    _log_handlers.append(logging.FileHandler(LOG_PATH, encoding='utf-8'))
+if getattr(sys, "stderr", None):
+    _log_handlers.append(logging.StreamHandler())
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
-    handlers=[
-        logging.FileHandler(LOG_PATH, encoding='utf-8'),
-        logging.StreamHandler()
-    ]
+    handlers=_log_handlers
 )
 
 # Глобальная обработка исключений - ловим всё что падает
@@ -57,7 +74,6 @@ def handle_exception(exc_type, exc_value, exc_traceback):
         return
     logging.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
 
-import sys
 sys.excepthook = handle_exception
 
 # Обработка для потоков
@@ -93,6 +109,21 @@ def _load_api_keys():
     try:
         from assistant_secrets import API_KEY_GEMINI as gemini_key, API_KEY_GEMMA as gemma_key
     except ImportError:
+        for base_dir in (APP_BASE_DIR, getattr(sys, "_MEIPASS", None)):
+            if not base_dir:
+                continue
+            secrets_path = os.path.join(base_dir, "assistant_secrets.py")
+            if not os.path.exists(secrets_path):
+                continue
+            try:
+                spec = importlib.util.spec_from_file_location("_assistant_secrets_external", secrets_path)
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                gemini_key = getattr(module, "API_KEY_GEMINI", "")
+                gemma_key = getattr(module, "API_KEY_GEMMA", gemini_key)
+                return gemini_key, gemma_key
+            except Exception as e:
+                logging.warning(f"Could not load external assistant_secrets.py: {e}")
         gemini_key = os.environ.get("GEMINI_API_KEY", "")
         gemma_key = os.environ.get("GEMMA_API_KEY", gemini_key)
     return gemini_key, gemma_key

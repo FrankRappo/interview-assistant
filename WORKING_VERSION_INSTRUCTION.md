@@ -5,7 +5,10 @@
 ## Что входит
 
 - `v26_assistant.py` — текущая рабочая версия ассистента.
-- `WORKING_VERSION_INSTRUCTION.md` — эта инструкция.
+- `v26_assistant.spec` — PyInstaller-конфигурация для сборки one-file Windows `.exe`.
+- `README.md` — основная инструкция для репозитория.
+- `DOCUMENTATION_v26_assistant.md` — подробности текущей сборки.
+- Локально, но не в GitHub: `v26_assistant.exe` и zip-архив с ним.
 
 ## Что исправлено
 
@@ -20,18 +23,27 @@ GEMMA_MODEL = "models/gemini-2.5-flash"
 Панель в интерфейсе может называться Gemma, но модель выбрана быстрая, чтобы ответ не висел и не молчал.
 
 4. Голосовой playback Gemini не добавлен — оставлен рабочий текстовый режим, как просили.
+5. Подготовлена локальная standalone-сборка Windows `.exe`, которую можно запускать без установки Python/pip.
 
-## Запуск
+## Запуск готового `.exe`
+
+```powershell
+C:\assistent\v26_assistant.exe
+```
+
+Нужны только интернет и разрешение Windows на микрофон.
+
+## Запуск из исходников
 
 ```powershell
 cd C:\assistent
 python v26_assistant.py
 ```
 
-Или запустить файл:
+Если зависимости не установлены:
 
 ```powershell
-python C:\assistent\v26_assistant.py
+python -m pip install pyaudiowpatch sounddevice google-genai numpy pynput
 ```
 
 ## Как пользоваться
@@ -43,16 +55,27 @@ python C:\assistent\v26_assistant.py
 5. Верхняя/левая панель показывает короткий ответ Gemini.
 6. Правая/вторая панель показывает улучшенный/расширенный ответ.
 
-## Важные настройки
+## Сборка `.exe`
 
-Текущие модели:
-
-```python
-GEMINI_MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025"
-GEMMA_MODEL = "models/gemini-2.5-flash"
+```powershell
+cd C:\assistent
+python -m pip install pyinstaller
+python -m PyInstaller --noconfirm --clean v26_assistant.spec
 ```
 
-API-ключи вшиты в файл, как требовалось.
+Результат:
+
+```powershell
+C:\assistent\dist\v26_assistant.exe
+```
+
+Если `assistant_secrets.py` есть рядом с `v26_assistant.py`, ключи будут встроены внутрь `.exe`.
+
+## Важная безопасность
+
+Локальный `.exe` собран с встроенными ключами. Поэтому `.exe`, zip-архив, `dist/`, `build/` и `assistant_secrets.py` не отправляются в GitHub.
+
+Если такой бинарник случайно попал в публичный доступ, ключи нужно сразу перевыпустить/отозвать.
 
 ## Если снова плохо слышит
 
@@ -78,10 +101,15 @@ Get-Content C:\assistent\v24.log -Tail 80
 
 ## Проверка текущей версии
 
-Файлы должны совпадать:
-
 ```powershell
-Get-FileHash C:\Users\user\v26_assistant.py,C:\assistent\v26_assistant.py -Algorithm SHA256
+python -m py_compile C:\assistent\v26_assistant.py
+Get-FileHash C:\assistent\v26_assistant.exe -Algorithm SHA256
+```
+
+Ожидаемый SHA256 локального `.exe`:
+
+```text
+6130459FC4A28DB695B738F932AA0D8F4FEEF52C9CFDEB665096DAD349A03EA3
 ```
 
 ## Примечание
